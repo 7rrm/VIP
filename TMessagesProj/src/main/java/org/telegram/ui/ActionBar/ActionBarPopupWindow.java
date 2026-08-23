@@ -723,20 +723,37 @@ public class ActionBarPopupWindow extends PopupWindow {
                 getLocationOnScreen(location);
                 float screenX = x + location[0];
                 float screenY = y + location[1];
-                
-                for (int i = 0; i < linearLayout.getChildCount(); i++) {
+        
+                // البحث في linearLayout من الأسفل إلى الأعلى
+                for (int i = linearLayout.getChildCount() - 1; i >= 0; i--) {
                     final View v = linearLayout.getChildAt(i);
                     if (!(v instanceof ActionBarMenuSubItem) || v.getVisibility() != View.VISIBLE) {
                         continue;
                     }
-                    Rect r = new Rect();
-                    if (v.getGlobalVisibleRect(r)) {
-                        if (r.contains((int) screenX, (int) screenY)) {
-                            return v;
-                        }
+                    // الحصول على إحداثيات العنصر
+                    int[] childLocation = new int[2];
+                    v.getLocationOnScreen(childLocation);
+                    int width = v.getWidth();
+                    int height = v.getHeight();
+            
+                    // منطقة اللمس
+                    int left = childLocation[0];
+                    int top = childLocation[1];
+                    int right = left + width;
+                    int bottom = top + height;
+            
+                    // إضافة مسافة تسامح
+                    int touchSlop = AndroidUtilities.dp(6);
+                    left -= touchSlop;
+                    top -= touchSlop;
+                    right += touchSlop;
+                    bottom += touchSlop;
+                    if (screenX >= left && screenX <= right && screenY >= top && screenY <= bottom) {
+                        return v;
                     }
                 }
             } catch (Throwable ignore) {
+                FileLog.e(ignore);
             }
             return null;
         }
