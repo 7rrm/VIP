@@ -719,35 +719,42 @@ public class ActionBarPopupWindow extends PopupWindow {
 
         private View meeroRowAt(float x, float y) {
             try {
+                // الحصول على إحداثيات العنصر الحالي
                 int[] location = new int[2];
                 getLocationOnScreen(location);
+                
+                // إحداثيات اللمس بالنسبة للشاشة
                 float screenX = x + location[0];
                 float screenY = y + location[1];
-        
-                // البحث في linearLayout من الأسفل إلى الأعلى
+                
+                // البحث في linearLayout من الخلف إلى الأمام
                 for (int i = linearLayout.getChildCount() - 1; i >= 0; i--) {
                     final View v = linearLayout.getChildAt(i);
                     if (!(v instanceof ActionBarMenuSubItem) || v.getVisibility() != View.VISIBLE) {
                         continue;
                     }
+                    
                     // الحصول على إحداثيات العنصر
                     int[] childLocation = new int[2];
                     v.getLocationOnScreen(childLocation);
+                    
+                    // عرض وارتفاع العنصر
                     int width = v.getWidth();
                     int height = v.getHeight();
-            
-                    // منطقة اللمس
+                    
+                    // منطقة اللمس مع إضافة مسافة تسامح صغيرة
                     int left = childLocation[0];
                     int top = childLocation[1];
                     int right = left + width;
                     int bottom = top + height;
-            
-                    // إضافة مسافة تسامح
+                    
+                    // إضافة مساحة تسامح لللمس (6dp)
                     int touchSlop = AndroidUtilities.dp(6);
                     left -= touchSlop;
                     top -= touchSlop;
                     right += touchSlop;
                     bottom += touchSlop;
+                    
                     if (screenX >= left && screenX <= right && screenY >= top && screenY <= bottom) {
                         return v;
                     }
@@ -758,10 +765,53 @@ public class ActionBarPopupWindow extends PopupWindow {
             return null;
         }
 
-        // MeeroX: dispatchTouchEvent المُبسط
+        // دالة مساعدة للتحقق من أن النقطة داخل القائمة
+        private boolean isPointInsidePopup(float x, float y) {
+            try {
+                // الحصول على حدود القائمة
+                int[] location = new int[2];
+                getLocationOnScreen(location);
+                
+                // إحداثيات اللمس بالنسبة للشاشة
+                float screenX = x + location[0];
+                float screenY = y + location[1];
+                
+                // حدود القائمة الفعلية (مع مراعاة الخلفية)
+                int left = location[0];
+                int top = location[1];
+                int right = left + getWidth();
+                int bottom = top + getHeight();
+                
+                // إضافة مسافة تسامح صغيرة للحواف
+                int padding = AndroidUtilities.dp(8);
+                left += padding;
+                top += padding;
+                right -= padding;
+                bottom -= padding;
+                
+                // التحقق من أن النقطة داخل القائمة
+                return screenX >= left && screenX <= right && screenY >= top && screenY <= bottom;
+            } catch (Throwable ignore) {
+                return true; // في حالة الخطأ، لا نغلق القائمة
+            }
+        }
+
+        // MeeroX: dispatchTouchEvent المحسن لحل مشكلة اللمس مع دعم الضغط خارج القائمة
         @Override
         public boolean dispatchTouchEvent(MotionEvent ev) {
             final int action = ev.getActionMasked();
+
+            // معالجة الضغط خارج القائمة (لجميع الحالات)
+            if (action == MotionEvent.ACTION_DOWN) {
+                // التحقق من أن الضغط خارج محتوى القائمة
+                if (!isPointInsidePopup(ev.getX(), ev.getY())) {
+                    // إغلاق القائمة إذا كان الضغط خارجها
+                    if (window != null) {
+                        window.dismiss();
+                    }
+                    return true;
+                }
+            }
 
             if (!isMeeroIosSkinOn()) {
                 return super.dispatchTouchEvent(ev);
@@ -771,7 +821,7 @@ public class ActionBarPopupWindow extends PopupWindow {
                 if (meeroSlopPx < 0) {
                     try {
                         final int slop = android.view.ViewConfiguration.get(getContext()).getScaledTouchSlop();
-                        meeroSlopPx = slop * slop * 4;
+                        meeroSlopPx = slop * slop * 2;
                     } catch (Throwable ignore) {
                         meeroSlopPx = 0;
                     }
@@ -779,10 +829,16 @@ public class ActionBarPopupWindow extends PopupWindow {
                 meeroDownX = ev.getX();
                 meeroDownY = ev.getY();
                 meeroMovedFar = false;
+                meeroTouchedView = null;
                 meeroSerialAtDown = tw.nekomimi.nekogram.MeeroMenuWatch.clickSeqVol();
                 
-                // تخزين الخيار الذي بدأت عليه اللمسة
+                // تحديد العنصر الذي تم لمسه
                 meeroTouchedView = meeroRowAt(ev.getX(), ev.getY());
+                
+                // إذا تم تحديد عنصر، قم بتسجيل الضغط
+                if (meeroTouchedView != null) {
+                    meeroTouchedView.setPressed(true);
+                }
                 
                 final boolean consumed = super.dispatchTouchEvent(ev);
                 tw.nekomimi.nekogram.MeeroMenuWatch.onDown(getContext(), ev.getX(), ev.getY(), getWidth(), getHeight(), consumed);
@@ -794,29 +850,54 @@ public class ActionBarPopupWindow extends PopupWindow {
                 final float dy = ev.getY() - meeroDownY;
                 if (dx * dx + dy * dy > meeroSlopPx) {
                     meeroMovedFar = true;
+                    // إلغاء حالة الضغط عند الحركة
+                    if (meeroTouchedView != null) {
+                        meeroTouchedView.setPressed(false);
+                    }
                 }
             }
 
             final boolean r = super.dispatchTouchEvent(ev);
 
-            // معالجة النقر الثابت فقط
             if (action == MotionEvent.ACTION_UP && meeroDownX >= 0
                     && !(swipeBackLayout != null && swipeBackLayout.isForegroundOpen())
                     && tw.nekomimi.nekogram.MeeroMenuWatch.clickSeqVol() == meeroSerialAtDown) {
                 
-                // النقر الثابت (لم تتحرك اللمسة)
-                if (!meeroMovedFar && meeroTouchedView != null) {
+                // ✅ إضافة شرط المدة (نقر سريع أقل من 400 مللي ثانية)
+                long duration = ev.getEventTime() - ev.getDownTime();
+                boolean isQuickTap = duration < 400;
+                
+                // تنفيذ النقر فقط إذا كانت لمسة ثابتة وسريعة
+                if (!meeroMovedFar && isQuickTap && meeroTouchedView != null) {
                     try {
-                        tw.nekomimi.nekogram.MeeroMenuWatch.onFallbackDelivered(meeroTouchedView.getTag());
-                        FileLog.d("MeeroX: menu fallback delivered click, id=" + meeroTouchedView.getTag());
-                        meeroTouchedView.performClick();
+                        // التحقق من أن العنصر لا يزال مرئياً ومفعالاً
+                        if (meeroTouchedView.isEnabled() && meeroTouchedView.getVisibility() == View.VISIBLE) {
+                            tw.nekomimi.nekogram.MeeroMenuWatch.onFallbackDelivered(meeroTouchedView.getTag());
+                            FileLog.d("MeeroX: menu fallback delivered click, id=" + meeroTouchedView.getTag());
+                            
+                            // تنفيذ النقر
+                            meeroTouchedView.performClick();
+                        }
                     } catch (Throwable t) {
                         FileLog.e(t);
                     }
                 }
+                
+                // إلغاء حالة الضغط
+                if (meeroTouchedView != null) {
+                    meeroTouchedView.setPressed(false);
+                }
             }
 
-            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            if (action == MotionEvent.ACTION_CANCEL) {
+                if (meeroTouchedView != null) {
+                    meeroTouchedView.setPressed(false);
+                }
+                meeroDownX = -1f;
+                meeroTouchedView = null;
+            }
+            
+            if (action == MotionEvent.ACTION_UP) {
                 meeroDownX = -1f;
                 meeroTouchedView = null;
             }
