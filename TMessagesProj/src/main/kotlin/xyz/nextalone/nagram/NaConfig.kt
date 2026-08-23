@@ -12,7 +12,7 @@ import org.telegram.messenger.SharedConfig
 import tw.nekomimi.nekogram.NekoConfig
 import tw.nekomimi.nekogram.config.ConfigItem
 import tw.nekomimi.nekogram.config.ConfigItemKeyLinked
-import tw.nekomimi.nekogram.llm.utils.LlmUrlNormalizer
+import tw.nekomimi.nekogram.llm.utils.UrlNormalizer
 import java.io.ByteArrayInputStream
 import java.io.ObjectInputStream
 
