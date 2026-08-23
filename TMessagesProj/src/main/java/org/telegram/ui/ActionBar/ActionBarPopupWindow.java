@@ -142,7 +142,7 @@ public class ActionBarPopupWindow extends PopupWindow {
         public int subtractBackgroundHeight;
         Rect rect;
 
-        // MeeroX: متغيرات لحل مشكلة اللمس (مضافة من 12.9)
+        // MeeroX: متغيرات لحل مشكلة اللمس
         private float meeroDownX = -1f, meeroDownY = -1f;
         private int meeroSerialAtDown, meeroSlopPx = -1;
         private boolean meeroMovedFar;
@@ -396,9 +396,7 @@ public class ActionBarPopupWindow extends PopupWindow {
         // then runs the exact normal path (v200-guarded dismiss + action).
         // Working rows keep their native path untouched: their click bumps
         // the serial during super, so the fallback never double-fires.
-        private float meeroDownX = -1f, meeroDownY = -1f;
-        private int meeroSerialAtDown, meeroSlopPx = -1;
-        private boolean meeroMovedFar;
+        // (المتغيرات معرفة بالفعل في الأعلى)
 
         private View meeroRowAt(float x, float y) {
             try {
