@@ -169,6 +169,12 @@ public class NekoConfig {
     public static ConfigItem meeroIosCall = addConfig("meeroIosCall", configTypeBool, true);
     public static ConfigItem meeroIosAlerts = addConfig("meeroIosAlerts", configTypeBool, true);
     public static ConfigItem meeroIosMediaGrid = addConfig("meeroIosMediaGrid", configTypeBool, true);
+
+    // ============================================================
+    // 🆕 MeeroX: إعدادات نمط الرسالة (Message Style)
+    // ============================================================
+    public static ConfigItem meeroMessageStyle = addConfig("meeroMessageStyle", configTypeInt, 0);
+
     // MeeroX v92: delivery ticks - master switch (off = official Android
     // Telegram ticks) and the chosen shape (0 = the original iOS pair).
     public static ConfigItem meeroTicksSwitch = addConfig("meeroTicksSwitch", configTypeBool, true);
@@ -257,7 +263,6 @@ public class NekoConfig {
     public static ConfigItem tabletMode = addConfig("TabletMode", configTypeInt, 0);
 
     public static ConfigItem typeface = addConfig("TypefaceUseDefault", configTypeBool, false);
-    public static ConfigItem forceFontWeightFallback = addConfig("forceFontWeightFallback", configTypeBool, false);
     public static ConfigItem nameOrder = addConfig("NameOrder", configTypeInt, 1);
     public static ConfigItem mapPreviewProvider = addConfig("MapPreviewProvider", configTypeInt, 0);
     public static ConfigItem showAddToSavedMessages = addConfig("showAddToSavedMessages", configTypeBool, true);
@@ -293,7 +298,7 @@ public class NekoConfig {
     public static ConfigItem showIdAndDc = addConfig("ShowIdAndDc", configTypeBool, true);
 
     public static ConfigItem cachePath = addConfig("cache_path", configTypeString, "");
-    public static ConfigItem customSavePath = addConfig("customSavePath", configTypeString, "MeeroX");
+    public static ConfigItem customSavePath = addConfig("customSavePath", configTypeString, "aRRaSGram");
 
     public static ConfigItem translationProvider = addConfig("translationProvider", configTypeInt, 1);
     public static ConfigItem translateToLang = addConfig("TransToLang", configTypeString, ""); // "" -> translate to current language (MessageTrans.kt & Translator.kt)
