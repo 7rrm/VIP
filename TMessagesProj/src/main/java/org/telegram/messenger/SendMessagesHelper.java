@@ -137,6 +137,8 @@ import java.util.zip.ZipInputStream;
 import tw.nekomimi.nekogram.utils.StringUtils;
 import tw.nekomimi.nekogram.NekoConfig;
 import xyz.nextalone.nagram.NaConfig;
+import tw.nekomimi.nekogram.MessageStyleHelper;
+
 
 public class SendMessagesHelper extends BaseController implements NotificationCenter.NotificationCenterDelegate {
 
