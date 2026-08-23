@@ -178,7 +178,7 @@ object NaConfig {
         addConfig(
             "CustomTitle",
             ConfigItem.configTypeString,
-            "aRRaSGram"
+            "MeeroX"
         )
     val dateOfForwardedMsg =
         addConfig(
@@ -777,6 +777,18 @@ object NaConfig {
     val llmProviderVercelAIGatewayModel =
         addConfig(
             "LlmProviderVercelAIGatewayModel",
+            ConfigItem.configTypeString,
+            ""
+        )
+    val llmProviderVertexKey =
+        addConfig(
+            "LlmProviderVertexKey",
+            ConfigItem.configTypeString,
+            ""
+        )
+    val llmProviderVertexModel =
+        addConfig(
+            "LlmProviderVertexModel",
             ConfigItem.configTypeString,
             ""
         )
