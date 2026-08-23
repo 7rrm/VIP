@@ -12,7 +12,7 @@ import org.telegram.messenger.SharedConfig
 import tw.nekomimi.nekogram.NekoConfig
 import tw.nekomimi.nekogram.config.ConfigItem
 import tw.nekomimi.nekogram.config.ConfigItemKeyLinked
-import tw.nekomimi.nekogram.llm.utils.UrlNormalizer
+import tw.nekomimi.nekogram.llm.utils.LlmUrlNormalizer
 import java.io.ByteArrayInputStream
 import java.io.ObjectInputStream
 
@@ -178,7 +178,7 @@ object NaConfig {
         addConfig(
             "CustomTitle",
             ConfigItem.configTypeString,
-            "MeeroX"
+            "aRRaSGram"
         )
     val dateOfForwardedMsg =
         addConfig(
@@ -777,18 +777,6 @@ object NaConfig {
     val llmProviderVercelAIGatewayModel =
         addConfig(
             "LlmProviderVercelAIGatewayModel",
-            ConfigItem.configTypeString,
-            ""
-        )
-    val llmProviderVertexKey =
-        addConfig(
-            "LlmProviderVertexKey",
-            ConfigItem.configTypeString,
-            ""
-        )
-    val llmProviderVertexModel =
-        addConfig(
-            "LlmProviderVertexModel",
             ConfigItem.configTypeString,
             ""
         )
@@ -1518,7 +1506,7 @@ object NaConfig {
         }
 
         val currentLlmApiUrl = llmApiUrl.String()
-        val normalizedLlmApiUrl = UrlNormalizer.normalizeBaseUrl(currentLlmApiUrl)
+        val normalizedLlmApiUrl = LlmUrlNormalizer.normalizeBaseUrl(currentLlmApiUrl)
         if (normalizedLlmApiUrl != currentLlmApiUrl) {
             llmApiUrl.setConfigString(normalizedLlmApiUrl)
         }
