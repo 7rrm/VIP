@@ -4295,6 +4295,30 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
                 sendMessageParams.sendMessageChatArguments : SendMessageChatArguments.EMPTY;
         String message = sendMessageParams.message;
         String caption = sendMessageParams.caption;
+        int style = NekoConfig.meeroMessageStyle.Int();
+        
+        // تطبيق النمط على النص الرئيسي (للمراسلة النصية)
+        if (message != null && !TextUtils.isEmpty(message) && style != MessageStyleHelper.STYLE_DEFAULT) {
+            if (!message.startsWith("/")) {
+                // إنشاء كيان التنسيق وإضافته إلى entities
+                sendMessageParams.entities = MessageStyleHelper.applyStyleWithEntity(
+                    sendMessageParams.entities, 
+                    style, 
+                    message.length()
+                );
+            }
+        }
+        // تطبيق النمط على الكابتشن (للوسائط: صور، فيديو، ملفات)
+        if (caption != null && !TextUtils.isEmpty(caption) && style != MessageStyleHelper.STYLE_DEFAULT) {
+            // إنشاء كيان التنسيق للكابتشن
+            TLRPC.MessageEntity entity = MessageStyleHelper.createEntity(style, 0, caption.length());
+            if (entity != null) {
+                if (sendMessageParams.entities == null) {
+                    sendMessageParams.entities = new ArrayList<>();
+                }
+                sendMessageParams.entities.add(entity);
+            }
+        }
         TLRPC.MessageMedia location = sendMessageParams.location;
         TLRPC.TL_photo photo = sendMessageParams.photo;
         VideoEditedInfo videoEditedInfo = sendMessageParams.videoEditedInfo;
