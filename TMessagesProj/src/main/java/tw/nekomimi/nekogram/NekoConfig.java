@@ -176,6 +176,7 @@ public class NekoConfig {
     // MeeroX v94: save stories to the gallery even when their owner forbids
     // saving, and ghost-mode selective read by swiping a chat in the list.
     // Both off = stock fork behaviour, untouched.
+    public static ConfigItem meeroMessageStyle = addConfig("meeroMessageStyle", configTypeInt, 0);
     public static ConfigItem meeroStoryDownload = addConfig("meeroStoryDownload", configTypeBool, true);
     public static ConfigItem meeroGhostSwipeRead = addConfig("meeroGhostSwipeRead", configTypeBool, true);
     // --- MeeroX Auto-reply (v98). Master switch defaults OFF on purpose:
@@ -257,7 +258,6 @@ public class NekoConfig {
     public static ConfigItem tabletMode = addConfig("TabletMode", configTypeInt, 0);
 
     public static ConfigItem typeface = addConfig("TypefaceUseDefault", configTypeBool, false);
-    public static ConfigItem forceFontWeightFallback = addConfig("forceFontWeightFallback", configTypeBool, false);
     public static ConfigItem forceFontWeightFallback = addConfig("forceFontWeightFallback", configTypeBool, false);
     public static ConfigItem nameOrder = addConfig("NameOrder", configTypeInt, 1);
     public static ConfigItem mapPreviewProvider = addConfig("MapPreviewProvider", configTypeInt, 0);
