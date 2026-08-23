@@ -1506,7 +1506,7 @@ object NaConfig {
         }
 
         val currentLlmApiUrl = llmApiUrl.String()
-        val normalizedLlmApiUrl = LlmUrlNormalizer.normalizeBaseUrl(currentLlmApiUrl)
+        val normalizedLlmApiUrl = UrlNormalizer.normalizeBaseUrl(currentLlmApiUrl)
         if (normalizedLlmApiUrl != currentLlmApiUrl) {
             llmApiUrl.setConfigString(normalizedLlmApiUrl)
         }
