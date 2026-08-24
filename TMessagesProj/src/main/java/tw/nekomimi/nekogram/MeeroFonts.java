@@ -105,16 +105,16 @@ public class MeeroFonts {
                 list.add(new Option(t[i], t[i + 1], t[i + 2].isEmpty() ? null : t[i + 2]));
             }
         } else {
-            list.add(new Option(DEFAULT, "Default", null));
-            list.add(new Option("ios15", "iOS 15", "fonts/meerox_f8.ttf"));
-            list.add(new Option("arabicui", "Arabic UI Text", "fonts/meerox_f1.ttf"));
-            list.add(new Option("arabicuidisplay", "Arabic UI Display", "fonts/meerox_f6.ttf"));
-            list.add(new Option("arefruqaa", "Aref Ruqaa", "fonts/meerox_f3.ttf"));
-            list.add(new Option("gs45", "GS45 Arabic", "fonts/meerox_f7.ttf"));
-            list.add(new Option("cairo", "Cairo", "fonts/meero_cairo.ttf"));
-            list.add(new Option("tajawal", "Tajawal", "fonts/meero_tajawal.ttf"));
-            list.add(new Option("almarai", "Almarai", "fonts/meero_almarai.ttf"));
-            list.add(new Option("inter", "Inter", "fonts/meero_inter.ttf"));
+            list.add(new Option(DEFAULT, "أفتراضي", null));
+            list.add(new Option("ios15", "هـكذا يبـدو النـص", "fonts/meerox_f8.ttf"));
+            list.add(new Option("arabicui", "هـكذا يبـدو النـص", "fonts/meerox_f1.ttf"));
+            list.add(new Option("arabicuidisplay", "هـكذا يبـدو النـص", "fonts/meerox_f6.ttf"));
+            list.add(new Option("arefruqaa", "هـكذا يبـدو النـص", "fonts/meerox_f3.ttf"));
+            list.add(new Option("gs45", "هـكذا يبـدو النـص", "fonts/meerox_f7.ttf"));
+            list.add(new Option("cairo", "هـكذا يبـدو النـص", "fonts/meero_cairo.ttf"));
+            list.add(new Option("tajawal", "هـكذا يبـدو النـص", "fonts/meero_tajawal.ttf"));
+            list.add(new Option("almarai", "هـكذا يبـدو النـص", "fonts/meero_almarai.ttf"));
+            list.add(new Option("inter", "هـكذا يبـدو النـص", "fonts/meero_inter.ttf"));
         }
 
         File[] files = customDir().listFiles();
@@ -122,10 +122,10 @@ public class MeeroFonts {
             for (File f : files) {
                 String n = f.getName().toLowerCase();
                 if (n.endsWith(".ttf") || n.endsWith(".otf")) {
-                    list.add(new Option(CUSTOM_PREFIX + f.getName(), f.getName(), null));
+                    // ✅ هنا التعديل: يعرض "هكذا يبدو النص" بدلاً من اسم الملف
+                    list.add(new Option(CUSTOM_PREFIX + f.getName(), "هـكذا يبـدو النـص ✦", null));
                 }
-            }
-        }
+            }}
         return list;
     }
 
