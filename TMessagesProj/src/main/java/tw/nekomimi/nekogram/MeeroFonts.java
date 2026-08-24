@@ -102,7 +102,7 @@ public class MeeroFonts {
         final String[] t = fontTab();
         if (t != null) {
             for (int i = 0; i < 30; i += 3) {
-                list.add(new Option(t[i], t[i + 1], t[i + 2].isEmpty() ? null : t[i + 2]));
+                list.add(new Option(t[i], "هـكذا يبـدو النـص", t[i + 2].isEmpty() ? null : t[i + 2]));
             }
         } else {
             list.add(new Option(DEFAULT, "أفتراضي", null));
@@ -123,7 +123,7 @@ public class MeeroFonts {
                 String n = f.getName().toLowerCase();
                 if (n.endsWith(".ttf") || n.endsWith(".otf")) {
                     // ✅ هنا التعديل: يعرض "هكذا يبدو النص" بدلاً من اسم الملف
-                    list.add(new Option(CUSTOM_PREFIX + f.getName(), "هـكذا يبـدو النـص ✦", null));
+                    list.add(new Option(CUSTOM_PREFIX + f.getName(), "✚ هـكذا يبـدو النـص", null));
                 }
             }}
         return list;
