@@ -9,7 +9,7 @@
     <group>
       <clip-path android:pathData="M0,0h512v512h-512z"/>
       
-      <!-- العمود الرأسي للحرف K - تدرج بنفسجي -->
+      <!-- العمود الرأسي للحرف K -->
       <path
           android:pathData="M120 128H190V384H120Z">
         <aapt:attr name="android:fillColor">
@@ -19,15 +19,15 @@
               android:endX="155"
               android:endY="384"
               android:type="linear">
-              <item android:offset="0" android:color="#FFD580FF"/>
-              <item android:offset="0.36" android:color="#FFC060FF"/>
-              <item android:offset="0.55" android:color="#FFA040FF"/>
-              <item android:offset="1" android:color="#FF8020FF"/>
+              <item android:offset="0" android:color="#FF5A52A6"/>
+              <item android:offset="0.36" android:color="#FF3D3A80"/>
+              <item android:offset="0.55" android:color="#FF2C2966"/>
+              <item android:offset="1" android:color="#FF2C2966"/>
           </gradient>
         </aapt:attr>
       </path>
       
-      <!-- الفرع المائل العلوي والسفلي معاً - تدرج بنفسجي -->
+      <!-- الفرع المائل العلوي والسفلي معاً -->
       <path
           android:pathData="M300 128L200 256L300 384H400L280 256L400 128Z">
         <aapt:attr name="android:fillColor">
@@ -37,11 +37,11 @@
               android:endX="300"
               android:endY="384"
               android:type="linear">
-              <item android:offset="0" android:color="#FFD580FF"/>
-              <item android:offset="0.04" android:color="#FFD070FF"/>
-              <item android:offset="0.38" android:color="#FFB050FF"/>
-              <item android:offset="0.56" android:color="#FFA040FF"/>
-              <item android:offset="1" android:color="#FF8020FF"/>
+              <item android:offset="0" android:color="#FF5A52A6"/>
+              <item android:offset="0.04" android:color="#FF554D9E"/>
+              <item android:offset="0.38" android:color="#FF3D3A80"/>
+              <item android:offset="0.56" android:color="#FF2C2966"/>
+              <item android:offset="1" android:color="#FF2C2966"/>
           </gradient>
         </aapt:attr>
       </path>
