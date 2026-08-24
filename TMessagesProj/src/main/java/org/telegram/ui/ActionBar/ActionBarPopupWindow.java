@@ -142,6 +142,12 @@ public class ActionBarPopupWindow extends PopupWindow {
         public int subtractBackgroundHeight;
         Rect rect;
 
+        // MeeroX: متغيرات لحل مشكلة اللمس
+        private float meeroDownX = -1f, meeroDownY = -1f;
+        private int meeroSerialAtDown, meeroSlopPx = -1;
+        private boolean meeroMovedFar;
+        private View meeroTouchedView;
+
         public Rect getPadding() {
             return bgPaddings;
         }
@@ -184,7 +190,17 @@ public class ActionBarPopupWindow extends PopupWindow {
 
             if ((flags & FLAG_DONT_USE_SCROLLVIEW) == 0) {
                 try {
-                    scrollView = new ScrollView(context);
+                    scrollView = new ScrollView(context) {
+                        @Override
+                        public boolean onInterceptTouchEvent(MotionEvent ev) {
+                            if (isMeeroIosSkinOn()
+                                    && !canScrollVertically(-1)
+                                    && !canScrollVertically(1)) {
+                                return false;
+                            }
+                            return super.onInterceptTouchEvent(ev);
+                        }
+                    };
                     scrollView.getViewTreeObserver().addOnScrollChangedListener(new ViewTreeObserver.OnScrollChangedListener() {
                         @Override
                         public void onScrollChanged() {
@@ -292,8 +308,6 @@ public class ActionBarPopupWindow extends PopupWindow {
         }
 
         public void setBackgroundColor(int color) {
-            // MeeroX: while the iOS skin owns the card, the tint is the iOS
-            // material fill - callers asking for the theme grey are ignored.
             if (meeroGate && backgroundDrawable instanceof MeeroIosCardDrawable) {
                 color = meeroIosCardColor();
             }
@@ -302,9 +316,7 @@ public class ActionBarPopupWindow extends PopupWindow {
             }
         }
 
-        // ---------------- MeeroX iOS popup skin (v153) ----------------
-        // Only action-bar menus opt in through meeroEnableIosMenuSkin();
-        // reactions, sheets and dialogs sharing this layout keep stock looks.
+        // ---------------- MeeroX iOS popup skin ----------------
         private boolean meeroSkinEligible;
         private boolean meeroGate;
         private boolean meeroLastOn;
@@ -315,7 +327,6 @@ public class ActionBarPopupWindow extends PopupWindow {
         private final Paint meeroSepPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private HashMap<ActionBarMenuSubItem, int[]> meeroSavedSel;
         private java.util.function.BooleanSupplier meeroCfgOverride;
-        // MeeroX v159: hairline settle-fade clock (-1 = not settled yet).
         private long meeroSepSettledAt = -1;
 
         private static boolean meeroSepFadeOn() {
@@ -340,8 +351,6 @@ public class ActionBarPopupWindow extends PopupWindow {
             requestLayout();
         }
 
-        // MeeroX: same opt-in as above, but the skin follows a caller-provided
-        // switch (used by the message context-menu so it can have its own setting).
         public void meeroEnableIosMenuSkin(java.util.function.BooleanSupplier cfg) {
             meeroCfgOverride = cfg;
             meeroEnableIosMenuSkin();
@@ -383,11 +392,60 @@ public class ActionBarPopupWindow extends PopupWindow {
         }
 
         private int meeroIosCardColor() {
-            return Theme.isCurrentThemeDark() ? 0xFF2A2A2F : 0xFFF9F9FC;
+            try {
+                final int txt = getThemedColor(Theme.key_actionBarDefaultSubmenuItem);
+                final int r = (txt >> 16) & 0xFF, g = (txt >> 8) & 0xFF, b = txt & 0xFF;
+                final float lum = (0.2126f * r + 0.7152f * g + 0.0722f * b) / 255f;
+                return lum > 0.55f ? 0xFF2A2A2F : 0xFFF9F9FC;
+            } catch (Throwable t) {
+                return Theme.isCurrentThemeDark() ? 0xFF2A2A2F : 0xFFF9F9FC;
+            }
         }
 
         private int meeroSepColor() {
-            return Theme.isCurrentThemeDark() ? 0x21FFFFFF : 0x1F000000;
+            return meeroCardWantsDark() ? 0x21FFFFFF : 0x1F000000;
+        }
+
+        private boolean meeroCardWantsDark() {
+            try {
+                final int txt = getThemedColor(Theme.key_actionBarDefaultSubmenuItem);
+                final int r = (txt >> 16) & 0xFF, g = (txt >> 8) & 0xFF, b = txt & 0xFF;
+                final float lum = (0.2126f * r + 0.7152f * g + 0.0722f * b) / 255f;
+                return lum > 0.55f;
+            } catch (Throwable t) {
+                return Theme.isCurrentThemeDark();
+            }
+        }
+
+        private void meeroEnforceReadableRows() {
+            try {
+                final boolean cardDark = meeroCardWantsDark();
+                final int n = linearLayout.getChildCount();
+                for (int i = 0; i < n; i++) {
+                    final View v = linearLayout.getChildAt(i);
+                    if (!(v instanceof ActionBarMenuSubItem) || v.getVisibility() != View.VISIBLE) {
+                        continue;
+                    }
+                    if (meeroIsDestructive(v)) {
+                        continue;
+                    }
+                    final ActionBarMenuSubItem item = (ActionBarMenuSubItem) v;
+                    if (item.textView == null) {
+                        continue;
+                    }
+                    final int tc = item.textView.getCurrentTextColor();
+                    final int r = (tc >> 16) & 0xFF, g = (tc >> 8) & 0xFF, b = tc & 0xFF;
+                    final float tl = (0.2126f * r + 0.7152f * g + 0.0722f * b) / 255f;
+                    if (cardDark && tl < 0.45f) {
+                        item.setTextColor(0xFFF2F2F7);
+                        item.setIconColor(0xFFF2F2F7);
+                    } else if (!cardDark && tl > 0.60f) {
+                        item.setTextColor(0xFF1C1C1E);
+                        item.setIconColor(0xFF1C1C1E);
+                    }
+                }
+            } catch (Throwable ignore) {
+            }
         }
 
         private Drawable meeroIosCard() {
@@ -431,15 +489,10 @@ public class ActionBarPopupWindow extends PopupWindow {
                 meeroStockDrawable = null;
                 backgroundDrawable.getPadding(bgPaddings);
             }
-            // MeeroX v159: flexible width lets short menus follow their
-            // content with a smaller floor instead of the fixed 252dp.
             final int mw = on ? (meeroFlexWidthOn() ? dp(200) : dp(252)) : 0;
             if (getMinimumWidth() != mw) {
                 setMinimumWidth(mw);
             }
-            // The split red card exists only for the contiguous run of
-            // destructive rows that closes the visible list; mid-menu red
-            // rows just stay red inside the main card.
             int firstDestIdx = -1;
             if (on) {
                 final int n = linearLayout.getChildCount();
@@ -479,9 +532,6 @@ public class ActionBarPopupWindow extends PopupWindow {
                     meeroIosSpacer = new View(getContext());
                     meeroIosSpacer.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(8)));
                 }
-                // The spacer must sit directly before the anchor; inserting at
-                // the anchor's own index guarantees that, and checking for
-                // "already predecessor" keeps steady-state frames mutation-free.
                 if (meeroIosSpacer.getParent() == null) {
                     linearLayout.addView(meeroIosSpacer, linearLayout.indexOfChild(anchor));
                 } else if (linearLayout.indexOfChild(meeroIosSpacer) != linearLayout.indexOfChild(anchor) - 1) {
@@ -623,7 +673,7 @@ public class ActionBarPopupWindow extends PopupWindow {
                         }
                     }
                 });
-                animatorSet.setInterpolator(decelerateInterpolator);
+                animatorSet.setInterpolator(new DecelerateInterpolator());
                 animatorSet.start();
                 if (itemAnimators == null) {
                     itemAnimators = new ArrayList<>();
@@ -677,6 +727,195 @@ public class ActionBarPopupWindow extends PopupWindow {
 
         Path path;
 
+        private View meeroRowAt(float x, float y) {
+            try {
+                // الحصول على إحداثيات العنصر الحالي
+                int[] location = new int[2];
+                getLocationOnScreen(location);
+                
+                // إحداثيات اللمس بالنسبة للشاشة
+                float screenX = x + location[0];
+                float screenY = y + location[1];
+                
+                // البحث في linearLayout من الخلف إلى الأمام
+                for (int i = linearLayout.getChildCount() - 1; i >= 0; i--) {
+                    final View v = linearLayout.getChildAt(i);
+                    if (!(v instanceof ActionBarMenuSubItem) || v.getVisibility() != View.VISIBLE) {
+                        continue;
+                    }
+                    
+                    // الحصول على إحداثيات العنصر
+                    int[] childLocation = new int[2];
+                    v.getLocationOnScreen(childLocation);
+                    
+                    // عرض وارتفاع العنصر
+                    int width = v.getWidth();
+                    int height = v.getHeight();
+                    
+                    // منطقة اللمس مع إضافة مسافة تسامح صغيرة
+                    int left = childLocation[0];
+                    int top = childLocation[1];
+                    int right = left + width;
+                    int bottom = top + height;
+                    
+                    // إضافة مساحة تسامح لللمس (4dp)
+                    int touchSlop = AndroidUtilities.dp(4);
+                    left -= touchSlop;
+                    top -= touchSlop;
+                    right += touchSlop;
+                    bottom += touchSlop;
+                    
+                    if (screenX >= left && screenX <= right && screenY >= top && screenY <= bottom) {
+                        return v;
+                    }
+                }
+            } catch (Throwable ignore) {
+                FileLog.e(ignore);
+            }
+            return null;
+        }
+
+        // دالة مساعدة للتحقق من أن النقطة داخل القائمة
+        private boolean isPointInsidePopup(float x, float y) {
+            try {
+                // الحصول على حدود القائمة
+                int[] location = new int[2];
+                getLocationOnScreen(location);
+                
+                // إحداثيات اللمس بالنسبة للشاشة
+                float screenX = x + location[0];
+                float screenY = y + location[1];
+                
+                // حدود القائمة الفعلية (مع مراعاة الخلفية)
+                int left = location[0];
+                int top = location[1];
+                int right = left + getWidth();
+                int bottom = top + getHeight();
+                
+                // إضافة مسافة تسامح صغيرة للحواف
+                int padding = AndroidUtilities.dp(8);
+                left += padding;
+                top += padding;
+                right -= padding;
+                bottom -= padding;
+                
+                // التحقق من أن النقطة داخل القائمة
+                return screenX >= left && screenX <= right && screenY >= top && screenY <= bottom;
+            } catch (Throwable ignore) {
+                return true; // في حالة الخطأ، لا نغلق القائمة
+            }
+        }
+
+        // MeeroX: dispatchTouchEvent المحسن لحل مشكلة اللمس مع دعم الضغط خارج القائمة
+        @Override
+        public boolean dispatchTouchEvent(MotionEvent ev) {
+            final int action = ev.getActionMasked();
+
+            // معالجة الضغط خارج القائمة (لجميع الحالات)
+            if (action == MotionEvent.ACTION_DOWN) {
+                // التحقق من أن الضغط خارج محتوى القائمة
+                if (!isPointInsidePopup(ev.getX(), ev.getY())) {
+                    // إغلاق القائمة إذا كان الضغط خارجها
+                    if (window != null) {
+                        window.dismiss();
+                    }
+                    return true;
+                }
+            }
+
+            if (!isMeeroIosSkinOn()) {
+                return super.dispatchTouchEvent(ev);
+            }
+
+            if (action == MotionEvent.ACTION_DOWN) {
+                if (meeroSlopPx < 0) {
+                    try {
+                        final int slop = android.view.ViewConfiguration.get(getContext()).getScaledTouchSlop();
+                        meeroSlopPx = slop * slop * 2;
+                    } catch (Throwable ignore) {
+                        meeroSlopPx = 0;
+                    }
+                }
+                meeroDownX = ev.getX();
+                meeroDownY = ev.getY();
+                meeroMovedFar = false;
+                meeroTouchedView = null;
+                meeroSerialAtDown = tw.nekomimi.nekogram.MeeroMenuWatch.clickSeqVol();
+                
+                // تحديد العنصر الذي تم لمسه
+                meeroTouchedView = meeroRowAt(ev.getX(), ev.getY());
+                
+                // إذا تم تحديد عنصر، قم بتسجيل الضغط
+                if (meeroTouchedView != null) {
+                    meeroTouchedView.setPressed(true);
+                }
+                
+                final boolean consumed = super.dispatchTouchEvent(ev);
+                tw.nekomimi.nekogram.MeeroMenuWatch.onDown(getContext(), ev.getX(), ev.getY(), getWidth(), getHeight(), consumed);
+                return consumed;
+            }
+
+            if (action == MotionEvent.ACTION_MOVE && !meeroMovedFar && meeroDownX >= 0) {
+                final float dx = ev.getX() - meeroDownX;
+                final float dy = ev.getY() - meeroDownY;
+                if (dx * dx + dy * dy > meeroSlopPx) {
+                    meeroMovedFar = true;
+                    // إلغاء حالة الضغط عند الحركة
+                    if (meeroTouchedView != null) {
+                        meeroTouchedView.setPressed(false);
+                    }
+                }
+            }
+
+            final boolean r = super.dispatchTouchEvent(ev);
+
+            if (action == MotionEvent.ACTION_UP && meeroDownX >= 0
+                    && !(swipeBackLayout != null && swipeBackLayout.isForegroundOpen())
+                    && tw.nekomimi.nekogram.MeeroMenuWatch.clickSeqVol() == meeroSerialAtDown) {
+                
+                // تنفيذ النقر فقط إذا كانت لمسة ثابتة (لم تتحرك)
+                if (!meeroMovedFar && meeroTouchedView != null) {
+                    try {
+                        // التحقق من أن العنصر لا يزال مرئياً ومفعالاً
+                        if (meeroTouchedView.isEnabled() && meeroTouchedView.getVisibility() == View.VISIBLE) {
+                            // التحقق مرة أخرى من أن اللمس لا يزال على نفس العنصر
+                            View currentView = meeroRowAt(ev.getX(), ev.getY());
+                            
+                            // السماح بفارق بسيط: إذا كان currentView هو نفس العنصر أو null
+                            if (currentView == meeroTouchedView || currentView == null) {
+                                tw.nekomimi.nekogram.MeeroMenuWatch.onFallbackDelivered(meeroTouchedView.getTag());
+                                FileLog.d("MeeroX: menu fallback delivered click, id=" + meeroTouchedView.getTag());
+                                
+                                // تنفيذ النقر
+                                meeroTouchedView.performClick();
+                            }
+                        }
+                    } catch (Throwable t) {
+                        FileLog.e(t);
+                    }
+                }
+                
+                // إلغاء حالة الضغط
+                if (meeroTouchedView != null) {
+                    meeroTouchedView.setPressed(false);
+                }
+            }
+
+            if (action == MotionEvent.ACTION_CANCEL) {
+                if (meeroTouchedView != null) {
+                    meeroTouchedView.setPressed(false);
+                }
+                meeroDownX = -1f;
+                meeroTouchedView = null;
+            }
+            
+            if (action == MotionEvent.ACTION_UP) {
+                meeroDownX = -1f;
+                meeroTouchedView = null;
+            }
+            return r;
+        }
+
         @Override
         protected void dispatchDraw(Canvas canvas) {
             if (swipeBackGravityRight) {
@@ -693,9 +932,6 @@ public class ActionBarPopupWindow extends PopupWindow {
             if (swipeBackGravityBottom) {
                 setTranslationY(getMeasuredHeight() * (1f - backScaleY));
             }
-            // MeeroX: feed the existing two-card background path the Y of our
-            // injected 8dp spacer, so the iOS destructive group draws as its
-            // own rounded card. fitItems owns these fields for other menus.
             if (meeroSkinEligible) {
                 if (meeroGate && meeroIosSpacer != null && meeroIosSpacer.getParent() == linearLayout && backAlpha == 255 && backScaleX == 1f && backScaleY == 1f) {
                     gapStartY = linearLayout.getTop() + meeroIosSpacer.getTop();
@@ -724,7 +960,7 @@ public class ActionBarPopupWindow extends PopupWindow {
                     if (hasGap && backAlpha != 255) {
                         canvas.saveLayerAlpha(0, bgPaddings.top, getMeasuredWidth(), getMeasuredHeight(), backAlpha, Canvas.ALL_SAVE_FLAG);
                         applyAlpha = false;
-                    }  else if (gapStartY != -1000000) {
+                    } else if (gapStartY != -1000000) {
                         canvas.save();
                         canvas.clipRect(0, bgPaddings.top, getMeasuredWidth(), getMeasuredHeight());
                     }
@@ -813,17 +1049,13 @@ public class ActionBarPopupWindow extends PopupWindow {
                     canvas.restoreToCount(saveCount);
                 }
             }
-            // MeeroX: iOS hairline separators - drawn once the popup is fully
-            // settled so the entrance scale never shows unscaled strokes.
             if (meeroSkinEligible && meeroGate && backAlpha == 255 && backScaleX == 1f && backScaleY == 1f && reactionsEnterProgress == 1f) {
+                meeroEnforceReadableRows();
                 View prevVisible = null;
                 final int scrollY = scrollView == null ? 0 : scrollView.getScrollY();
                 final int contentTop = linearLayout.getTop();
                 final boolean rtl = getLayoutDirection() == View.LAYOUT_DIRECTION_RTL;
                 final int leadInset = bgPaddings.left + dp(16);
-                // MeeroX v159: instead of snapping in at settle, the hairlines
-                // fade in over 120ms (iOS settle feel). meeroSepFade OFF =
-                // the previous instant appearance, same timing as v153-v158.
                 int meeroSepAlphaNow = 255;
                 if (meeroSepFadeOn()) {
                     final long now = System.currentTimeMillis();
@@ -839,30 +1071,29 @@ public class ActionBarPopupWindow extends PopupWindow {
                     meeroSepSettledAt = -1;
                 }
                 if (meeroSepAlphaNow > 0) {
-                final int meeroSepBase = meeroSepColor();
-                meeroSepPaint.setColor(meeroSepBase);
-                // Compose the color's own alpha with the fade progress.
-                meeroSepPaint.setAlpha((meeroSepBase >>> 24) * meeroSepAlphaNow / 255);
-                final int n = linearLayout.getChildCount();
-                for (int i = 0; i < n; i++) {
-                    View v = linearLayout.getChildAt(i);
-                    if (v == meeroIosSpacer) {
-                        prevVisible = null;
-                        continue;
-                    }
-                    if (v.getVisibility() != View.VISIBLE) {
-                        continue;
-                    }
-                    if (prevVisible instanceof ActionBarMenuSubItem && v instanceof ActionBarMenuSubItem) {
-                        final float y = contentTop + v.getTop() - scrollY;
-                        if (rtl) {
-                            canvas.drawRect(bgPaddings.left, y, getMeasuredWidth() - leadInset, y + 1, meeroSepPaint);
-                        } else {
-                            canvas.drawRect(leadInset, y, getMeasuredWidth() - bgPaddings.right, y + 1, meeroSepPaint);
+                    final int meeroSepBase = meeroSepColor();
+                    meeroSepPaint.setColor(meeroSepBase);
+                    meeroSepPaint.setAlpha((meeroSepBase >>> 24) * meeroSepAlphaNow / 255);
+                    final int n = linearLayout.getChildCount();
+                    for (int i = 0; i < n; i++) {
+                        View v = linearLayout.getChildAt(i);
+                        if (v == meeroIosSpacer) {
+                            prevVisible = null;
+                            continue;
                         }
+                        if (v.getVisibility() != View.VISIBLE) {
+                            continue;
+                        }
+                        if (prevVisible instanceof ActionBarMenuSubItem && v instanceof ActionBarMenuSubItem) {
+                            final float y = contentTop + v.getTop() - scrollY;
+                            if (rtl) {
+                                canvas.drawRect(bgPaddings.left, y, getMeasuredWidth() - leadInset, y + 1, meeroSepPaint);
+                            } else {
+                                canvas.drawRect(leadInset, y, getMeasuredWidth() - bgPaddings.right, y + 1, meeroSepPaint);
+                            }
+                        }
+                        prevVisible = v;
                     }
-                    prevVisible = v;
-                }
                 }
             } else {
                 meeroSepSettledAt = -1;
@@ -1027,15 +1258,25 @@ public class ActionBarPopupWindow extends PopupWindow {
 
     private void init() {
         View contentView = getContentView();
-        if (contentView instanceof ActionBarPopupWindowLayout && ((ActionBarPopupWindowLayout) contentView).getSwipeBack() != null) {
+        if (contentView instanceof ActionBarPopupWindowLayout && 
+            ((ActionBarPopupWindowLayout) contentView).getSwipeBack() != null) {
             setTouchInterceptor((v, e) -> {
                 if (e.getAction() == MotionEvent.ACTION_DOWN) {
-                    Drawable backgroundDrawable = ((ActionBarPopupWindowLayout) contentView).getBackgroundDrawable();
-                    AndroidUtilities.rectTmp.set(backgroundDrawable.getBounds());
-                    AndroidUtilities.rectTmp.offset(contentView.getX(), contentView.getY());
-                    if (!AndroidUtilities.rectTmp.contains(e.getX(), e.getY())) {
-                        dismiss();
-                        return true;
+                    final ActionBarPopupWindowLayout meeroLayout = 
+                        (ActionBarPopupWindowLayout) contentView;
+                    
+                    if (meeroLayout.isMeeroIosSkinOn()) {
+                        return false;
+                    }
+                    
+                    Drawable backgroundDrawable = meeroLayout.getBackgroundDrawable();
+                    if (backgroundDrawable != null) {
+                        AndroidUtilities.rectTmp.set(backgroundDrawable.getBounds());
+                        AndroidUtilities.rectTmp.offset(contentView.getX(), contentView.getY());
+                        if (!AndroidUtilities.rectTmp.contains(e.getX(), e.getY())) {
+                            dismiss();
+                            return true;
+                        }
                     }
                 }
                 return false;
@@ -1138,17 +1379,6 @@ public class ActionBarPopupWindow extends PopupWindow {
         }
     }
 
-    /**
-     * MeeroX: where the menu should appear to grow from.
-     *
-     * Android pins the pivot to the menu's top-right corner, so a menu always
-     * unfolds from the same place no matter where it was summoned. iOS grows
-     * its context menus out of the point that was actually touched, which is
-     * what makes the menu feel attached to the thing it belongs to.
-     *
-     * Set in the popup's own coordinates before it is shown; -1 leaves the
-     * stock corner behaviour alone.
-     */
     private static float meeroPivotX = -1f;
     private static float meeroPivotY = -1f;
 
@@ -1170,8 +1400,6 @@ public class ActionBarPopupWindow extends PopupWindow {
         }
     }
 
-    // MeeroX v159: unify popup open/close on ~180ms with an ease-out curve
-    // (iOS pacing), instead of the inherited per-item cascade timing.
     private static boolean meeroSwiftMenus() {
         try {
             return tw.nekomimi.nekogram.NekoConfig.meeroSwiftMenus.Bool();
@@ -1194,9 +1422,6 @@ public class ActionBarPopupWindow extends PopupWindow {
         content.setTranslationY(0);
         content.setAlpha(1.0f);
         if (meeroIosMenu() && meeroPivotX >= 0 && meeroPivotY >= 0) {
-            // Clamped so a touch outside the menu's own box still yields a
-            // pivot on its edge rather than off it, which would swing the
-            // menu in from the side instead of scaling it up.
             content.setPivotX(Math.max(0, Math.min(content.getMeasuredWidth(), meeroPivotX)));
             content.setPivotY(Math.max(0, Math.min(content.getMeasuredHeight(), meeroPivotY)));
         } else {
@@ -1480,13 +1705,6 @@ public class ActionBarPopupWindow extends PopupWindow {
         void onSizeChanged();
     }
 
-    /**
-     * MeeroX: iOS menu card drawn from a pre-rendered nine-slice bitmap, so
-     * the 14pt corner radius and the soft drop shadow survive the same
-     * bounds-driven two-card (gap) drawing path the stock 9-patch uses. The
-     * bitmap is neutral white; the regular MULTIPLY tint path recolours it,
-     * exactly like the stock patch.
-     */
     public static class MeeroIosCardDrawable extends Drawable {
 
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
@@ -1511,8 +1729,6 @@ public class ActionBarPopupWindow extends PopupWindow {
             Canvas canvas = new Canvas(bmp);
             Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
             p.setColor(0xFFFFFFFF);
-            // Software canvas: the shadow layer blurs for real here, unlike a
-            // hardware-accelerated dispatchDraw where it would be dropped.
             p.setShadowLayer(dp(4), 0, dp(2), 0x59000000);
             canvas.drawRoundRect(new RectF(padL, padT, w - padR, h - padB), rad, rad, p);
             bitmap = bmp;
