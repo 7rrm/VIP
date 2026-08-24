@@ -362,6 +362,10 @@ public class ActionBarPopupWindow extends PopupWindow {
             }
         }
 
+        public boolean isMeeroIosSkinOn() {
+            return meeroSkinEligible && meeroCfg();
+        }
+
         private static boolean meeroRedish(int c) {
             final int r = (c >> 16) & 0xFF, g = (c >> 8) & 0xFF, b = c & 0xFF;
             return r > 180 && g < 130 && b < 130;
