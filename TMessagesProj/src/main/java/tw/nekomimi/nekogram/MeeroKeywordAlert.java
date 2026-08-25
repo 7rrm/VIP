@@ -33,40 +33,18 @@ import java.util.ArrayList;
 import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * MeeroX v105: keyword alert ("منبه الكلمات المفتاحية").
- *
- * Watches NotificationCenter.didReceiveNewMessages for every account slot
- * (the same v100 timing-safe pattern as the auto-reply: observers attach
- * unconditionally at Application.onCreate, activation is re-checked per
- * event). A new incoming message that contains one of the configured words
- * posts an instant system notification - even for muted groups. An entry is
- * a dialog id plus a comma separated word list; dialog id 0 means "every
- * chat". Words under 2 letters never match, and per-chat alerts are
- * throttled to one per 30 seconds so buzzing groups stay usable. All
- * matching is on-device; while the master switch is off the watcher does
- * nothing at all. Off by default (user opt-in).
- *
- * v184 (batch 2B): the matching heart moved into libmeerocore - freshness,
- * entry scan order, comma + arabic-comma splitting, trimming, the 2-letter
- * floor and the 30 s per-chat throttle all run natively, and the word sets
- * persist as an opaque seed-sealed blob. Java keeps the system notification
- * plumbing and a byte-identical legacy JSON path for builds without the lib.
- *
- * v202: Added alert log (سجل التنبيهات) showing all keyword hits.
- */
 public final class MeeroKeywordAlert {
 
     private MeeroKeywordAlert() {}
 
     private static final String CHANNEL_ID = "meero_keyword";
-    private static final long THROTTLE_MS = 30_000L; // legacy fallback path only
+    private static final long THROTTLE_MS = 30_000L;
     private static volatile boolean started;
     private static volatile boolean nativeLoaded;
-    private static final ConcurrentHashMap<Long, Long> lastNotifyAt = new ConcurrentHashMap<>(); // legacy fallback only
+    private static final ConcurrentHashMap<Long, Long> lastNotifyAt = new ConcurrentHashMap<>();
 
     public static final class Entry {
-        public long dialogId;      // 0 = every chat
+        public long dialogId;
         public String words = "";
     }
 
@@ -99,7 +77,6 @@ public final class MeeroKeywordAlert {
 
     private static void onNewMessages(int account, Object[] args) {
         if (!NekoConfig.meeroKeywordAlert.Bool()) return;
-        // per-event activation check: configs load after Application.onCreate
         if (!UserConfig.getInstance(account).isClientActivated()) return;
         if (args == null || args.length < 3) return;
 
@@ -109,8 +86,8 @@ public final class MeeroKeywordAlert {
         ArrayList<MessageObject> messages = (ArrayList<MessageObject>) args[1];
         boolean scheduled = (Boolean) args[2];
         if (scheduled) return;
-        if (dialogId == UserConfig.getInstance(account).getClientUserId()) return; // Saved Messages
-        if (dialogId == 777000) return; // Telegram service account
+        if (dialogId == UserConfig.getInstance(account).getClientUserId()) return;
+        if (dialogId == 777000) return;
 
         final boolean nativeCore = MeeroCore.ready();
         ArrayList<Entry> entries = null;
@@ -126,16 +103,14 @@ public final class MeeroKeywordAlert {
         for (MessageObject msg : messages) {
             if (msg == null || msg.isOut()) continue;
             if (msg.messageOwner == null || msg.messageOwner.action != null) continue;
-            if (now - msg.messageOwner.date * 1000L > 120_000L) continue; // restored history
-            String text = msg.messageOwner.message; // captions live here too
+            if (now - msg.messageOwner.date * 1000L > 120_000L) continue;
+            String text = msg.messageOwner.message;
             if (TextUtils.isEmpty(text)) continue;
             String lower = text.toLowerCase(Locale.ROOT);
 
             String matchedWord = null;
 
             if (nativeCore) {
-                // one alert per message is enough: the native core returns
-                // the winning word, or null for no-hit / throttled
                 String hit = MeeroCore.nKwMatch(dialogId, msg.messageOwner.date, now, lower);
                 if (hit == null) continue;
                 matchedWord = hit;
@@ -147,27 +122,29 @@ public final class MeeroKeywordAlert {
 
             for (Entry entry : entries) {
                 if (entry.dialogId != 0 && entry.dialogId != dialogId) continue;
-                String hit = firstHit(entry.words, lower);
-                if (hit == null) continue;
-                matchedWord = hit;
-                // one alert per chat per 30 seconds; rapid-fire chats stay sane
+                
+                // 🔹 دعم كلمات متعددة - البحث عن كل كلمة في النص
+                String[] words = entry.words.split("[,،]");
+                for (String w : words) {
+                    String word = w.trim();
+                    if (word.length() < 2) continue;
+                    if (lower.contains(word.toLowerCase(Locale.ROOT))) {
+                        matchedWord = word;
+                        break;
+                    }
+                }
+                
+                if (matchedWord == null) continue;
+                
                 Long last = lastNotifyAt.get(dialogId);
                 if (last != null && now - last < THROTTLE_MS) break;
                 lastNotifyAt.put(dialogId, now);
                 String who = senderName(account, msg, dialogId);
                 String chat = chatTitle(account, dialogId);
                 notifyHit(who, chat, text, matchedWord, dialogId);
-                break; // one alert per message is enough
+                break;
             }
         }
-    }
-
-    private static String firstHit(String words, String lowerText) {
-        for (String w : words.split("[,،]")) {
-            String t = w.trim();
-            if (t.length() >= 2 && lowerText.contains(t.toLowerCase(Locale.ROOT))) return t;
-        }
-        return null;
     }
 
     private static String senderName(int account, MessageObject msg, long dialogId) {
@@ -216,7 +193,6 @@ public final class MeeroKeywordAlert {
                 array = new JSONArray();
             }
 
-            // إضافة في البداية (الأحدث أولاً) مع حد أقصى 200
             JSONArray newArray = new JSONArray();
             newArray.put(o);
             for (int i = 0; i < array.length() && i < 199; i++) {
@@ -270,12 +246,14 @@ public final class MeeroKeywordAlert {
             intent.addCategory(Intent.CATEGORY_LAUNCHER);
             PendingIntent pendingIntent = PendingIntent.getActivity(ctx, 0, intent,
                     PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            
             String snippet = fullText.replace('\n', ' ').trim();
             if (snippet.length() > 100) snippet = snippet.substring(0, 100) + "…";
             String body = chat.equals(who) ? who + ": " + snippet : chat + " • " + who + ": " + snippet;
+            
             NotificationCompat.Builder builder = new NotificationCompat.Builder(ctx, CHANNEL_ID)
                     .setSmallIcon(R.drawable.nagram_notification)
-                    .setContentTitle(MeeroStrings.s(162))
+                    .setContentTitle(MeeroStrings.s(162) + " - \"" + matchedWord + "\"")
                     .setContentText(body)
                     .setAutoCancel(true)
                     .setContentIntent(pendingIntent);
@@ -289,7 +267,7 @@ public final class MeeroKeywordAlert {
         }
     }
 
-    // ---------------- keyword sets (JSON [{"id":long,"words":"a,b"}]) ----------------
+    // ---------------- keyword sets ----------------
 
     private static JSONArray readEntries() {
         try {
@@ -335,7 +313,6 @@ public final class MeeroKeywordAlert {
         return getEntries().size();
     }
 
-    /** One set per dialog id (0 = the global "all chats" set). Empty words = remove. */
     public static synchronized void upsertEntry(long dialogId, String words) {
         if (MeeroCore.ready()) {
             ensureNativeLoaded();
@@ -365,10 +342,6 @@ public final class MeeroKeywordAlert {
         upsertEntry(dialogId, null);
     }
 
-    // --- v184 (batch 2B): native store lifecycle ---------------------------
-
-    /** Words are stored lowercase (matching is case-insensitive anyway);
-     *  null/empty means remove. */
     private static String normalizeWords(String words) {
         if (words == null) return null;
         String t = words.trim();
@@ -376,9 +349,6 @@ public final class MeeroKeywordAlert {
         return t.toLowerCase(Locale.ROOT);
     }
 
-    /** One-shot per process: decrypt the sealed store into native memory.
-     *  On a fresh/tampered blob the legacy JSON key is imported once, the
-     *  sealed store is written, and the plaintext key is dropped. */
     private static synchronized void ensureNativeLoaded() {
         if (nativeLoaded || !MeeroCore.ready()) return;
         nativeLoaded = true;
@@ -412,4 +382,4 @@ public final class MeeroKeywordAlert {
             }
         }
     }
-}
+                        }
