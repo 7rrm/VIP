@@ -1,5 +1,6 @@
 package tw.nekomimi.nekogram.settings;
 
+import tw.nekomimi.nekogram.MeeroKeywordAlert;
 import tw.nekomimi.nekogram.MeeroStrings;
 
 import static org.telegram.messenger.LocaleController.getString;
@@ -31,19 +32,23 @@ import org.telegram.ui.Cells.TextDetailSettingsCell;
 import org.telegram.ui.Cells.TextInfoPrivacyCell;
 import org.telegram.ui.DialogsActivity;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
+import java.util.Locale;
 
-import tw.nekomimi.nekogram.MeeroKeywordAlert;
 import tw.nekomimi.nekogram.NekoConfig;
 import tw.nekomimi.nekogram.ui.cells.HeaderCell;
 
 /**
- * MeeroX v105: keyword alert management screen ("منبه الكلمات").
+ * MeeroX v105-v202: keyword alert management screen ("منبه الكلمات").
  *
  * Master switch plus a list of keyword sets: each set is a chat picked with
  * the stock dialogs picker (or the global "all chats" entry) and a comma
- * separated word list. Tap a set to edit its words or remove it. Engine in
- * {@link MeeroKeywordAlert}.
+ * separated word list. Tap a set to edit its words or remove it.
+ * 
+ * v202: Added alert log (سجل التنبيهات) showing all keyword hits.
+ * Engine in {@link MeeroKeywordAlert}.
  */
 public class MeeroKeywordAlertActivity extends BaseNekoSettingsActivity {
 
@@ -53,14 +58,26 @@ public class MeeroKeywordAlertActivity extends BaseNekoSettingsActivity {
     private int entryStartRow;
     private int entryEndRow;
     private int emptyRow;
+    private int dividerRow;
+    
+    // 📝 سجل التنبيهات
+    private int logHeaderRow;
+    private int logStartRow;
+    private int logEndRow;
+    private int emptyLogRow;
+    private int clearLogRow;
+    
     private int infoRow;
 
     private final ArrayList<MeeroKeywordAlert.Entry> entries = new ArrayList<>();
+    private final ArrayList<MeeroKeywordAlert.LogItem> logItems = new ArrayList<>();
 
     @Override
     protected void updateRows() {
         super.updateRows();
         reload();
+        reloadLog();
+        
         masterRow = addRow();
         headerRow = addRow();
         addRow = addRow();
@@ -68,12 +85,28 @@ public class MeeroKeywordAlertActivity extends BaseNekoSettingsActivity {
         for (int i = 0; i < entries.size(); i++) addRow();
         entryEndRow = rowCount;
         emptyRow = entries.isEmpty() ? addRow() : -1;
+        dividerRow = addRow(); // فاصل بين المجموعات والسجل
+        
+        // 📝 سجل التنبيهات
+        logHeaderRow = addRow();
+        logStartRow = rowCount;
+        int logCount = logItems.size();
+        for (int i = 0; i < logCount; i++) addRow();
+        logEndRow = rowCount;
+        emptyLogRow = logItems.isEmpty() ? addRow() : -1;
+        clearLogRow = logItems.isEmpty() ? -1 : addRow();
+        
         infoRow = addRow();
     }
 
     private void reload() {
         entries.clear();
         entries.addAll(MeeroKeywordAlert.getEntries());
+    }
+
+    private void reloadLog() {
+        logItems.clear();
+        logItems.addAll(MeeroKeywordAlert.getLog());
     }
 
     // MeeroX v129: opt into the fixed glass design (chrome, cards,
@@ -114,16 +147,30 @@ public class MeeroKeywordAlertActivity extends BaseNekoSettingsActivity {
         return MeeroStrings.s(213);
     }
 
+    private String timeOf(long timestamp) {
+        return new SimpleDateFormat("HH:mm dd/MM", Locale.US).format(new Date(timestamp));
+    }
+
     @Override
     protected void onItemClick(View view, int position, float x, float y) {
         if (position == masterRow) {
             NekoConfig.meeroKeywordAlert.toggleConfigBool();
             ((TextCheckCell) view).setChecked(NekoConfig.meeroKeywordAlert.Bool());
         } else if (position == infoRow) {
-            // v111: usage-guide popup instead of the long footer.
             tw.nekomimi.nekogram.MeeroUsageGuide.show(this, 160);
         } else if (position == addRow) {
             showAddKindDialog();
+        } else if (position == clearLogRow && clearLogRow >= 0) {
+            new AlertDialog.Builder(getParentActivity())
+                .setTitle(MeeroStrings.s(487))
+                .setMessage(MeeroStrings.s(488))
+                .setPositiveButton(getString(R.string.OK), (dialog, which) -> {
+                    MeeroKeywordAlert.clearLog();
+                    updateRows();
+                    listAdapter.notifyDataSetChanged();
+                })
+                .setNegativeButton(getString(R.string.Cancel), null)
+                .show();
         } else if (position >= entryStartRow && position < entryEndRow) {
             MeeroKeywordAlert.Entry entry = entries.get(position - entryStartRow);
             showEntryOptions(entry);
@@ -181,7 +228,7 @@ public class MeeroKeywordAlertActivity extends BaseNekoSettingsActivity {
         editText.setHintTextColor(getThemedColor(Theme.key_windowBackgroundWhiteHintText));
         editText.setText(prefill);
         editText.setSelection(editText.getText().length());
-        editText.setHint(MeeroStrings.s(163));
+        editText.setHint(MeeroStrings.s(163) + " (مثال: فلوس, اجتماع, عاجل)");
         FrameLayout container = new FrameLayout(context);
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.setMargins(AndroidUtilities.dp(24), AndroidUtilities.dp(4), AndroidUtilities.dp(24), 0);
@@ -190,7 +237,12 @@ public class MeeroKeywordAlertActivity extends BaseNekoSettingsActivity {
                 .setTitle(titleOf(dialogId))
                 .setView(container)
                 .setPositiveButton(getString(R.string.Save), (dialog, which) -> {
-                    MeeroKeywordAlert.upsertEntry(dialogId, editText.getText().toString());
+                    String words = editText.getText().toString().trim();
+                    if (!TextUtils.isEmpty(words)) {
+                        MeeroKeywordAlert.upsertEntry(dialogId, words);
+                    } else {
+                        MeeroKeywordAlert.removeEntry(dialogId);
+                    }
                     updateRows();
                     listAdapter.notifyDataSetChanged();
                 })
@@ -244,6 +296,8 @@ public class MeeroKeywordAlertActivity extends BaseNekoSettingsActivity {
                     HeaderCell headerCell = (HeaderCell) holder.itemView;
                     if (position == headerRow) {
                         headerCell.setText(MeeroStrings.s(159));
+                    } else if (position == logHeaderRow) {
+                        headerCell.setText(MeeroStrings.s(485)); // "سجل التنبيهات"
                     }
                     break;
                 case TYPE_TEXT:
@@ -252,8 +306,14 @@ public class MeeroKeywordAlertActivity extends BaseNekoSettingsActivity {
                         textCell.setTextAndValue(MeeroStrings.s(153), "", true);
                     } else if (position == emptyRow) {
                         textCell.setTextAndValue(MeeroStrings.s(158), "", true);
+                    } else if (position == dividerRow) {
+                        // فاصل غير مرئي
+                        textCell.setVisibility(View.GONE);
+                    } else if (position == emptyLogRow) {
+                        textCell.setTextAndValue(MeeroStrings.s(486), "", true); // "لا توجد تنبيهات مسجلة بعد"
+                    } else if (position == clearLogRow) {
+                        textCell.setTextAndValue(MeeroStrings.s(487), "", true); // "مسح السجل"
                     } else if (position == infoRow) {
-                        // v111: usage-guide button instead of the long footer.
                         textCell.setTextAndValue(MeeroStrings.s(268), "", true);
                     }
                     break;
@@ -263,9 +323,14 @@ public class MeeroKeywordAlertActivity extends BaseNekoSettingsActivity {
                         MeeroKeywordAlert.Entry entry = entries.get(position - entryStartRow);
                         detailCell.setMultilineDetail(true);
                         detailCell.setTextAndValue(titleOf(entry.dialogId), entry.words, position + 1 < entryEndRow);
+                    } else if (position >= logStartRow && position < logEndRow) {
+                        MeeroKeywordAlert.LogItem item = logItems.get(position - logStartRow);
+                        String title = MeeroStrings.f(490, item.who, item.chat); // "%s في %s"
+                        String detail = MeeroStrings.f(491, item.matchedWord, timeOf(item.timestamp)); // "🔔 "%s" • %s"
+                        detailCell.setMultilineDetail(true);
+                        detailCell.setTextAndValue(title, detail, position + 1 < logEndRow);
                     }
                     break;
-
             }
         }
 
@@ -273,11 +338,14 @@ public class MeeroKeywordAlertActivity extends BaseNekoSettingsActivity {
         public int getItemViewType(int position) {
             if (position == masterRow) {
                 return TYPE_CHECK;
-            } else if (position == headerRow) {
+            } else if (position == headerRow || position == logHeaderRow) {
                 return TYPE_HEADER;
-            } else if (position == addRow || position == emptyRow || position == infoRow) {
+            } else if (position == addRow || position == emptyRow || position == dividerRow || 
+                       position == emptyLogRow || position == clearLogRow || position == infoRow) {
                 return TYPE_TEXT;
             } else if (position >= entryStartRow && position < entryEndRow) {
+                return TYPE_DETAIL_SETTINGS;
+            } else if (position >= logStartRow && position < logEndRow) {
                 return TYPE_DETAIL_SETTINGS;
             }
             return TYPE_INFO_PRIVACY;
