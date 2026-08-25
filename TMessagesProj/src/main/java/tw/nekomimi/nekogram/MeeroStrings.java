@@ -504,6 +504,15 @@ public final class MeeroStrings {
         put("MessageStyleMono", "Monospace", "نص أحادي");
         put("MessageStyleApplied", "Font style set to: %s", "تم تعيين الخط إلى: %s");
         put("MessageStyleHeader", "Choose font style", "اختر نمط الخط");
+        put("MeeroKeywordLogHeader", "Alert log", "سجل التنبيهات");
+        put("MeeroKeywordLogEmpty", "No alerts recorded yet", "لا توجد تنبيهات مسجلة بعد");
+        put("MeeroKeywordLogClear", "Clear log", "مسح السجل");
+        put("MeeroKeywordLogClearConfirm", "Delete all recorded alerts? This cannot be undone.", "حذف جميع التنبيهات المسجلة؟ لا يمكن التراجع عن هذا.");
+        put("MeeroKeywordLogInfo", "All alerts are stored locally on your device only.", "جميع التنبيهات مسجلة محلياً على جهازك فقط.");
+        put("MeeroKeywordLogEntryFormat", "%s in %s", "%s في %s");
+        put("MeeroKeywordLogDetailFormat", "🔔 \"%s\" • %s", "🔔 \"%s\" • %s");
+        put("MeeroKeywordMatchedWord", "Matched word: %s", "الكلمة المطابقة: %s");
+        put("MeeroKeywordAlertHit", "Keyword hit", "تنبيه كلمة");
     }
         // ============================================================
         // ✅ المفاتيح من strings_meerox.xml (موجودة هنا)
@@ -1006,6 +1015,15 @@ public final class MeeroStrings {
         ID_TO_KEY.put(482, "MessageStyleMono");
         ID_TO_KEY.put(483, "MessageStyleApplied");
         ID_TO_KEY.put(484, "MessageStyleHeader");
+        ID_TO_KEY.put(485, "MeeroKeywordLogHeader");
+        ID_TO_KEY.put(486, "MeeroKeywordLogEmpty");
+        ID_TO_KEY.put(487, "MeeroKeywordLogClear");
+        ID_TO_KEY.put(488, "MeeroKeywordLogClearConfirm");
+        ID_TO_KEY.put(489, "MeeroKeywordLogInfo");
+        ID_TO_KEY.put(490, "MeeroKeywordLogEntryFormat");
+        ID_TO_KEY.put(491, "MeeroKeywordLogDetailFormat");
+        ID_TO_KEY.put(492, "MeeroKeywordMatchedWord");
+        ID_TO_KEY.put(493, "MeeroKeywordAlertHit");
     }
 
     private static boolean isArabic() {
