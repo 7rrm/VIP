@@ -52,6 +52,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * floor and the 30 s per-chat throttle all run natively, and the word sets
  * persist as an opaque seed-sealed blob. Java keeps the system notification
  * plumbing and a byte-identical legacy JSON path for builds without the lib.
+ *
+ * v202: Added alert log (سجل التنبيهات) showing all keyword hits.
  */
 public final class MeeroKeywordAlert {
 
@@ -66,6 +68,18 @@ public final class MeeroKeywordAlert {
     public static final class Entry {
         public long dialogId;      // 0 = every chat
         public String words = "";
+    }
+
+    // ============================================================
+    // 📝 سجل التنبيهات (Alert Log)
+    // ============================================================
+    public static final class LogItem {
+        public long timestamp;
+        public long dialogId;
+        public String who = "";
+        public String chat = "";
+        public String message = "";
+        public String matchedWord = "";
     }
 
     public static void start() {
@@ -117,14 +131,17 @@ public final class MeeroKeywordAlert {
             if (TextUtils.isEmpty(text)) continue;
             String lower = text.toLowerCase(Locale.ROOT);
 
+            String matchedWord = null;
+
             if (nativeCore) {
                 // one alert per message is enough: the native core returns
                 // the winning word, or null for no-hit / throttled
                 String hit = MeeroCore.nKwMatch(dialogId, msg.messageOwner.date, now, lower);
                 if (hit == null) continue;
+                matchedWord = hit;
                 String who = senderName(account, msg, dialogId);
                 String chat = chatTitle(account, dialogId);
-                notifyHit(who, chat, text);
+                notifyHit(who, chat, text, matchedWord, dialogId);
                 continue;
             }
 
@@ -132,13 +149,14 @@ public final class MeeroKeywordAlert {
                 if (entry.dialogId != 0 && entry.dialogId != dialogId) continue;
                 String hit = firstHit(entry.words, lower);
                 if (hit == null) continue;
+                matchedWord = hit;
                 // one alert per chat per 30 seconds; rapid-fire chats stay sane
                 Long last = lastNotifyAt.get(dialogId);
                 if (last != null && now - last < THROTTLE_MS) break;
                 lastNotifyAt.put(dialogId, now);
                 String who = senderName(account, msg, dialogId);
                 String chat = chatTitle(account, dialogId);
-                notifyHit(who, chat, text);
+                notifyHit(who, chat, text, matchedWord, dialogId);
                 break; // one alert per message is enough
             }
         }
@@ -177,7 +195,68 @@ public final class MeeroKeywordAlert {
         return MeeroStrings.s(127);
     }
 
-    private static void notifyHit(String who, String chat, String fullText) {
+    // ============================================================
+    // 📝 تسجيل التنبيه في السجل
+    // ============================================================
+    private static void addToLog(long dialogId, String who, String chat, String message, String matchedWord) {
+        try {
+            JSONObject o = new JSONObject();
+            o.put("t", System.currentTimeMillis());
+            o.put("id", dialogId);
+            o.put("who", who);
+            o.put("chat", chat);
+            o.put("msg", message);
+            o.put("word", matchedWord);
+
+            JSONArray array;
+            String existing = NekoConfig.getPreferences().getString("meeroKeywordLog", "");
+            if (!TextUtils.isEmpty(existing)) {
+                array = new JSONArray(existing);
+            } else {
+                array = new JSONArray();
+            }
+
+            // إضافة في البداية (الأحدث أولاً) مع حد أقصى 200
+            JSONArray newArray = new JSONArray();
+            newArray.put(o);
+            for (int i = 0; i < array.length() && i < 199; i++) {
+                newArray.put(array.get(i));
+            }
+
+            NekoConfig.getPreferences().edit().putString("meeroKeywordLog", newArray.toString()).apply();
+        } catch (Throwable t) {
+            if (BuildVars.LOGS_ENABLED) FileLog.e(t);
+        }
+    }
+
+    public static ArrayList<LogItem> getLog() {
+        ArrayList<LogItem> items = new ArrayList<>();
+        String existing = NekoConfig.getPreferences().getString("meeroKeywordLog", "");
+        if (TextUtils.isEmpty(existing)) return items;
+        try {
+            JSONArray array = new JSONArray(existing);
+            for (int i = 0; i < array.length(); i++) {
+                JSONObject o = array.getJSONObject(i);
+                LogItem item = new LogItem();
+                item.timestamp = o.optLong("t");
+                item.dialogId = o.optLong("id");
+                item.who = o.optString("who", "");
+                item.chat = o.optString("chat", "");
+                item.message = o.optString("msg", "");
+                item.matchedWord = o.optString("word", "");
+                items.add(item);
+            }
+        } catch (Throwable t) {
+            if (BuildVars.LOGS_ENABLED) FileLog.e(t);
+        }
+        return items;
+    }
+
+    public static void clearLog() {
+        NekoConfig.getPreferences().edit().remove("meeroKeywordLog").apply();
+    }
+
+    private static void notifyHit(String who, String chat, String fullText, String matchedWord, long dialogId) {
         try {
             Context ctx = ApplicationLoader.applicationContext;
             NotificationManager manager = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
@@ -201,6 +280,10 @@ public final class MeeroKeywordAlert {
                     .setAutoCancel(true)
                     .setContentIntent(pendingIntent);
             NotificationManagerCompat.from(ctx).notify(("k:" + System.currentTimeMillis()).hashCode(), builder.build());
+
+            // تسجيل في السجل
+            addToLog(dialogId, who, chat, fullText, matchedWord);
+
         } catch (Throwable t) {
             if (BuildVars.LOGS_ENABLED) FileLog.e(t);
         }
@@ -329,4 +412,4 @@ public final class MeeroKeywordAlert {
             }
         }
     }
-}
+            }
